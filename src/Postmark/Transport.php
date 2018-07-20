@@ -88,12 +88,30 @@ class Transport implements Swift_Transport {
 			]
 		);
 
-		if ($evt) {
+		$sendSuccessful = $response->getStatusCode() == 200;
+
+		if ($evt && $sendSuccessful) {
 			$evt->setResult(\Swift_Events_SendEvent::RESULT_SUCCESS);
 			$this->_eventDispatcher->dispatchEvent($evt, 'sendPerformed');
 		}
 
-		return $response;
+		return $sendSuccessful
+			? $this->getRecipientCount($message)
+			: 0;
+	}
+
+	/**
+	 * Get the number of recipients for a message
+	 *
+	 * @param Swift_Mime_Message $message
+	 * @return int
+	 */
+	private function getRecipientCount(Swift_Mime_Message $message) {
+	    return count(array_merge(
+            (array) $message->getTo(),
+            (array) $message->getCc(),
+            (array) $message->getBcc())
+        );
 	}
 
 	/**
