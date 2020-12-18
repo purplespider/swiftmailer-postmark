@@ -64,9 +64,9 @@ class Transport implements Swift_Transport {
 	public function send(Swift_Mime_Message $message, &$failedRecipients = null) {
 		$client = $this->getHttpClient();
 
-		if ($evt = $this->_eventDispatcher->createSendEvent($this, $message)) {
-			$this->_eventDispatcher->dispatchEvent($evt, 'beforeSendPerformed');
-			if ($evt->bubbleCancelled()) {
+		if ($sendEvent = $this->_eventDispatcher->createSendEvent($this, $message)) {
+			$this->_eventDispatcher->dispatchEvent($sendEvent, 'beforeSendPerformed');
+			if ($sendEvent->bubbleCancelled()) {
 				return 0;
 			}
 		}
@@ -88,14 +88,18 @@ class Transport implements Swift_Transport {
 			]
 		);
 
-		$sendSuccessful = $response->getStatusCode() == 200;
+		$success = $response->getStatusCode() === 200;
 
-		if ($evt && $sendSuccessful) {
-			$evt->setResult(\Swift_Events_SendEvent::RESULT_SUCCESS);
-			$this->_eventDispatcher->dispatchEvent($evt, 'sendPerformed');
+		if ($responseEvent = $this->_eventDispatcher->createResponseEvent($this, $response->getBody()->getContents(), $success)) {
+			$this->_eventDispatcher->dispatchEvent($responseEvent, 'responseReceived');
 		}
 
-		return $sendSuccessful
+		if ($sendEvent) {
+			$sendEvent->setResult($success ? \Swift_Events_SendEvent::RESULT_SUCCESS : \Swift_Events_SendEvent::RESULT_FAILED);
+			$this->_eventDispatcher->dispatchEvent($sendEvent, 'sendPerformed');
+		}
+
+		return $success
 			? $this->getRecipientCount($message)
 			: 0;
 	}
